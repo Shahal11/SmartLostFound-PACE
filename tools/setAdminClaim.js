@@ -1,6 +1,18 @@
 const fs = require('fs');
 const path = require('path');
-const admin = require('firebase-admin');
+
+// Use firebase-admin from Cloud Functions, not the React frontend package.
+const functionsAdminPath = path.join(__dirname, '..', 'functions', 'node_modules', 'firebase-admin');
+let admin;
+try {
+  admin = require(functionsAdminPath);
+} catch (err) {
+  console.error(
+    'firebase-admin not found under functions/node_modules.\n' +
+      'Install it with: cd functions && npm install'
+  );
+  process.exit(1);
+}
 
 const envPath = process.env.SERVICE_ACCOUNT_PATH;
 const possiblePaths = [

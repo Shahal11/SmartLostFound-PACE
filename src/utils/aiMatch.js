@@ -1,9 +1,8 @@
 // src/utils/aiMatch.js
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// 1. Initialize the API
-// Note: For a real production app, use process.env.REACT_APP_GEMINI_KEY
-const API_KEY = "AIzaSyAqXQCMaxgi6aA54Q8uy8bItwarOHt8lQw"; 
+// 1. Initialize the API from env (never hardcode keys in source)
+const API_KEY = process.env.REACT_APP_GEMINI_API_KEY;
 const genAI = new GoogleGenerativeAI(API_KEY);
 
 export const checkMatch = async (lostText, foundText) => {

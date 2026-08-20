@@ -19,10 +19,10 @@ import emailjs from '@emailjs/browser';
 import { AlertTriangle } from 'lucide-react';
 import LoadingSpinner from '../../components/shared/LoadingSpinner'; // Import spinner
 
-// --- EMAILJS CONFIGURATION ---
-const EMAILJS_SERVICE_ID = "service_9okj6ds"; // Updated with your provided ID
-const EMAILJS_TEMPLATE_ID = "template_60v377k"; // Your previously provided Template ID
-const EMAILJS_PUBLIC_KEY = "bprCxoq0K-vr3kJPo"; // Your previously provided Public Key
+// --- EMAILJS CONFIGURATION (from env; public-by-design, not hardcoded) ---
+const EMAILJS_SERVICE_ID = process.env.REACT_APP_EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_ID = process.env.REACT_APP_EMAILJS_TEMPLATE_ID;
+const EMAILJS_PUBLIC_KEY = process.env.REACT_APP_EMAILJS_PUBLIC_KEY;
 
 const PAGE_SIZE = 10; // Adjusted for better loading capability
 
