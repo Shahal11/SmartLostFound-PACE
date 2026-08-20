@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Select Location (Leaflet) - PACE L&F</title>
+    <!-- 1. Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+          integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+          crossorigin=""/>
+    <!-- 2. Leaflet Geocoder CSS (for search bar) -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+
+    <style>
+        body, html { height: 100%; margin: 0; padding: 0; font-family: 'Poppins', sans-serif; background-color: #f0f0f0; }
+        #map { height: 100vh; width: 100%; /* Make map fill entire window */ }
+        
+        /* Pop-up info box at the bottom */
+        #infobox {
+            position: fixed;
+            bottom: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 90%;
+            maxWidth: 500px;
+            background-color: rgba(255, 255, 255, 0.95);
+            padding: 12px;
+            border-radius: 8px;
+            border: 1px solid #0A4C9C;
+            text-align: center;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+        }
+        #infobox strong { color: #0A4C9C; }
+        #infobox code { background-color: #d0e0ff; padding: 2px 5px; border-radius: 4px; font-family: monospace; }
+        #confirm-button {
+            background-color: #10B981; /* Green for confirm */
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-top: 10px;
+            width: 100%;
+            /* Added for loading state */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            min-height: 35px; /* Ensure height consistency */
+        }
+        #confirm-button:hover { background-color: #0d926a; }
+        #confirm-button:disabled { background-color: #9ca3af; cursor: not-allowed; }
+
+        /* Simple spinner for loading button */
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #ffffff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Leaflet Geocoder default icon fix */
+         .leaflet-control-geocoder-icon {
+            background-image: url(https://unpkg.com/leaflet-control-geocoder/dist/images/geocoder.png);
+            background-size: 26px 26px;
+            width: 26px;
+            height: 26px;
+         }
+         .leaflet-control-geocoder-form input {
+             font-family: 'Poppins', sans-serif;
+             font-size: 0.9rem;
+         }
+    </style>
+     <!-- Import Poppins Font -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <!-- 3. Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+            integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+            crossorigin=""></script>
+    <!-- 4. Leaflet Geocoder JavaScript -->
+    <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+</head>
+<body>
+
+    <div id="map"></div>
+
+    <div id="infobox">
+        <strong>Selected Location:</strong> <span id="place-name">Map Center</span><br/>
+        <code id="latitude">Loading...</code>, <code id="longitude">Loading...</code>
+        <button id="confirm-button">
+            <span id="confirm-text">Confirm This Location</span>
+            <div id="confirm-spinner" class="spinner" style="display: none;"></div>
+        </button>
+    </div>
+
+<script>
+    // --- Gemini API Key (Leave as "" for the environment) ---
+    const GEMINI_API_KEY = ""; // Your API key will be injected here
+    const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${GEMINI_API_KEY}`;
+
+    // --- Initial Config ---
+    const defaultCenter = [12.9141, 74.8560]; // Mangalore fallback
+    let initialZoom = 13;
+
+    const map = L.map('map');
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+    }).addTo(map);
+
+    let marker = null;
+    let currentPlaceName = 'Map Center';
+    let currentLat = defaultCenter[0];
+    let currentLng = defaultCenter[1];
+
+    const confirmButton = document.getElementById('confirm-button');
+    const confirmText = document.getElementById('confirm-text');
+    const confirmSpinner = document.getElementById('confirm-spinner');
+
+    // --- Geocoder (Search Bar) Initialization ---
+    const geocoder = L.Control.Geocoder.nominatim();
+    L.Control.geocoder({
+        query: 'PACE College', // Initial search text
+        geocoder: geocoder,
+        defaultMarkGeocode: false,
+        placeholder: 'Search for location...',
+        position: 'topleft'
+    })
+    .on('markgeocode', function(e) {
+        const latlng = e.geocode.center;
+        const name = e.geocode.name;
+        map.setView(latlng, 17); // Center and zoom in
+        updateMarkerAndInfo(latlng, name);
+    })
+    .addTo(map);
+
+
+    // --- Core Marker and Info Update Logic ---
+
+    function updateMarkerAndInfo(latlng, placeName = null) {
+        currentLat = latlng.lat;
+        currentLng = latlng.lng;
+        currentPlaceName = placeName;
+
+        if (!marker) {
+            marker = L.marker(latlng, { draggable: true }).addTo(map);
+            marker.on('dragend', function(event) {
+                updateMarkerAndInfo(event.target.getLatLng()); // Update on drag
+            });
+        } else {
+            marker.setLatLng(latlng);
+        }
+
+        updateInfoBox(currentLat, currentLng, placeName);
+
+        // Perform reverse geocoding if placeName wasn't provided
+        if (!placeName) {
+            document.getElementById('place-name').textContent = 'Fetching address...';
+            geocoder.reverse(latlng, map.options.crs.scale(map.getZoom()), function(results) {
+                 const r = results[0];
+                 let foundName = `Lat: ${currentLat.toFixed(4)}, Lng: ${currentLng.toFixed(4)}`;
+                 if (r && r.name) {
+                     foundName = r.name;
+                     currentPlaceName = foundName;
+                 }
+                 updateInfoBox(currentLat, currentLng, foundName);
+            });
+        }
+    }
+
+    function updateInfoBox(lat, lng, name) {
+        if (typeof lat === 'number' && typeof lng === 'number') {
+            document.getElementById('latitude').textContent = `Lat: ${lat.toFixed(6)}`;
+            document.getElementById('longitude').textContent = `Lng: ${lng.toFixed(6)}`;
+        }
+        document.getElementById('place-name').textContent = name || 'Selected coordinates';
+    }
+
+    map.on('click', function(e) {
+        updateMarkerAndInfo(e.latlng);
+    });
+
+    // --- ✨ NEW: Gemini API Function to Clean Location Name ---
+    async function getCleanLocationName(rawPlaceName) {
+        const prompt = `Clean up this geocoded location name for a Lost & Found report. Make it short, clear, and human-readable, focusing on the main point of interest.
+        Example 1: "P. A. College of Engineering, NH 66, Kuntala, Karnataka, 574153, India" becomes "PACE College, Mangalore"
+        Example 2: "Central Library, PACE Campus, Mangalore" becomes "PACE Central Library"
+        Example 3: "Unnamed Road, Konaje, Mangaluru, Karnataka 574199, India" becomes "Near Mangalore University, Konaje"
+        
+        Original Name: "${rawPlaceName}"
+        Cleaned Name:`;
+
+        try {
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+            };
+            const response = await fetch(GEMINI_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                 throw new Error(`API Error: ${response.statusText}`);
+            }
+            const data = await response.json();
+            const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+            return text ? text.trim().replace(/"/g, '') : rawPlaceName; // Return cleaned text or fallback
+        } catch (error) {
+            console.error("Gemini API call failed:", error);
+            return rawPlaceName; // Fallback to raw name on error
+        }
+    }
+
+    // --- Updated Communication with Parent Window (React App) ---
+    async function sendLocationToParent() {
+         if (typeof currentLat !== 'number' || typeof currentLng !== 'number') return;
+        
+         // Show loading state on button
+         setButtonLoading(true);
+
+         // Get the current name from the info box
+         const rawName = currentPlaceName || document.getElementById('place-name').textContent;
+         
+         // ✨ Call Gemini to clean the name
+         const cleanedName = await getCleanLocationName(rawName);
+
+        const message = {
+            type: 'MAP_LOCATION_SELECTED',
+            payload: {
+                lat: currentLat,
+                lng: currentLng,
+                placeName: cleanedName // Send the cleaned name
+            }
+        };
+        
+        // Send message to the parent window (the React app)
+        if (window.opener) {
+            window.opener.postMessage(message, '*');
+            window.close(); // Close the pop-up
+        } else {
+            window.parent.postMessage(message, '*'); // Fallback for iframe
+        }
+
+        // Hide loading state (though window will close)
+        setButtonLoading(false);
+    }
+
+    function setButtonLoading(isLoading) {
+        if (isLoading) {
+            confirmButton.disabled = true;
+            confirmText.style.display = 'none';
+            confirmSpinner.style.display = 'block';
+        } else {
+            confirmButton.disabled = false;
+            confirmText.style.display = 'block';
+            confirmSpinner.style.display = 'none';
+        }
+    }
+
+     // --- Initial Map Setup ---
+     map.locate({setView: true, maxZoom: 16});
+     map.on('locationfound', function(e) {
+         updateMarkerAndInfo(e.latlng);
+         map.setView(e.latlng, 16);
+     });
+     map.on('locationerror', function(e) {
+         map.setView(defaultCenter, initialZoom);
+         const approxPACE = [12.8794, 74.8856];
+         updateMarkerAndInfo(L.latLng(approxPACE[0], approxPACE[1]), "PACE College, Mangalore (Approx)");
+     });
+
+     // --- Button Click Listeners ---
+     document.getElementById('confirm-button').addEventListener('click', sendLocationToParent);
+     
+     // Remove clipboard copy for simplicity, as the pop-up auto-closes.
+
+</script>
+
+</body>
+</html>

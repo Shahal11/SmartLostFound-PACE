@@ -1,0 +1,20 @@
+/* Import Poppins font */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+
+/* Inject Tailwind's base, components, and utility styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Define global base styles based on your mockup's theme */
+body {
+  /* This applies the 'Poppins' font and the light blue background */
+  @apply font-sans bg-pace-blue-light text-ink-dark;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* NOTE: All Leaflet CSS is now loaded via CDN <link>
+  inside the pace_report_map.html file. 
+  It is no longer needed here.
+*/

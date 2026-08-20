@@ -1,0 +1,14 @@
+/* src/index.css */
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+/* Import Poppins font */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
+
+/* Apply the default font globally */
+body {
+  font-family: 'Poppins', sans-serif;
+  /* Add default text/background colors from your theme */
+  @apply text-gray-800 bg-gray-50; 
+}
